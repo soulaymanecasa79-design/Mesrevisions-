@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MesRévisions</title>
+<style>
+  :root{
+    --paper:#F6F3EC;
+    --paper-dark:#EDE8DA;
+    --ink:#20304A;
+    --ink-soft:#4A5A73;
+    --line:#D8D0BC;
+    --accent:#8A6D3B;
+    --good:#3E6B4F;
+    --bad:#A5453A;
+    --font-serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    --font-sans: -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-sans);
+    min-height:100vh;
+  }
+  header{
+    padding:24px 20px 16px;
+    border-bottom:2px solid var(--ink);
+    background:var(--paper);
+    position:sticky; top:0; z-index:5;
+  }
+  header h1{
+    font-family:var(--font-serif);
+    font-size:28px;
+    margin:0 0 4px;
+    letter-spacing:0.2px;
+  }
+  header p{margin:0; color:var(--ink-soft); font-size:14px;}
+
+  nav{
+    display:flex;
+    gap:8px;
+    padding:12px 16px;
+    overflow-x:auto;
+    background:var(--paper-dark);
+    border-bottom:1px solid var(--line);
+  }
+  nav button{
+    flex:none;
+    padding:8px 14px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:6px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  nav button.active{
+    background:var(--ink);
+    color:var(--paper);
+    border-color:var(--ink);
+  }
+
+  main{padding:20px 16px 60px; max-width:720px; margin:0 auto;}
+
+  .card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .card h2{
+    font-family:var(--font-serif);
+    font-size:19px;
+    margin:0 0 10px;
+  }
+  label{display:block; font-size:13px; color:var(--ink-soft); margin:10px 0 4px;}
+  input[type=text], textarea, select{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:#fff;
+    color:var(--ink);
+    font-family:var(--font-sans);
+    font-size:14px;
+  }
+  textarea{min-height:70px; resize:vertical;}
+  .btn{
+    display:inline-block;
+    padding:9px 16px;
+    border-radius:6px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:var(--paper);
+    font-size:14px;
+    cursor:pointer;
+    margin-top:10px;
+  }
+  .btn.secondary{
+    background:transparent;
+    color:var(--ink);
+  }
+  .btn.danger{
+    border-color:var(--bad);
+    background:transparent;
+    color:var(--bad);
+  }
+  .row{display:flex; gap:8px; flex-wrap:wrap;}
+  .row > *{flex:1; min-width:120px;}
+
+  .item{
+    padding:12px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .item:last-child{border-bottom:none;}
+  .item-title{font-weight:600;}
+  .item-actions{margin-top:6px; display:flex; gap:10px;}
+  .item-actions span{
+    font-size:12px;
+    color:var(--accent);
+    cursor:pointer;
+    text-decoration:underline;
+  }
+
+  .empty{
+    color:var(--ink-soft);
+    font-size:14px;
+    font-style:italic;
+    padding:10px 0;
+  }
+
+  .quiz-q{margin-bottom:18px;}
+  .quiz-q p.question{font-weight:600; margin-bottom:8px;}
+  .choice{
+    display:block;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    margin-bottom:6px;
+    cursor:pointer;
+    background:#fff;
+  }
+  .choice.selected{border-color:var(--ink); background:var(--paper-dark);}
+  .choice.correct{border-color:var(--good); background:#E7F0E9;}
+  .choice.incorrect{border-color:var(--bad); background:#F5E7E5;}
+
+  .score{
+    font-family:var(--font-serif);
+    font-size:22px;
+    text-align:center;
+    padding:16px 0;
+  }
+
+  .pill{
+    display:inline-block;
+    font-size:11px;
+    padding:2px 8px;
+    border-radius:10px;
+    background:var(--paper-dark);
+    color:var(--ink-soft);
+    margin-left:6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MesRévisions</h1>
+  <p>Tes matières, tes cours, tes exercices — corrigés automatiquement.</p>
+</header>
+
+<nav id="tabs">
+  <button data-tab="matieres" class="active">Matières</button>
+  <button data-tab="cours">Cours</button>
+  <button data-tab="exercices">Exercices</button>
+  <button data-tab="quiz">Quiz</button>
+</nav>
+
+<main id="app"></main>
+
+<script>
+/* ---------- STOCKAGE (data layer, localStorage) ---------- */
+const DB_KEY = "mesrevisions_data_v1";
+
+function loadDB(){
+  const raw = localStorage.getItem(DB_KEY);
+  if(raw){
+    try{ return JSON.parse(raw); }catch(e){}
+  }
+  return { matieres: [], cours: [], exercices: [] };
+}
+function saveDB(){
+  localStorage.setItem(DB_KEY, JSON.stringify(db));
+}
+let db = loadDB();
+
+function uid(){
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+
+/* ---------- NAVIGATION ---------- */
+let currentTab = "matieres";
+document.getElementById("tabs").addEventListener("click", e=>{
+  const btn = e.target.closest("button[data-tab]");
+  if(!btn) return;
+  currentTab = btn.dataset.tab;
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active", b===btn));
+  render();
+});
+
+/* ---------- RENDER ROUTER ---------- */
+function render(){
+  const app = document.getElementById("app");
+  if(currentTab==="matieres") app.innerHTML = viewMatieres();
+  else if(currentTab==="cours") app.innerHTML = viewCours();
+  else if(currentTab==="exercices") app.innerHTML = viewExercices();
+  else if(currentTab==="quiz") app.innerHTML = viewQuizSetup();
+  attachHandlers();
+}
+
+/* ---------- MATIERES ---------- */
+function viewMatieres(){
+  const list = db.matieres.map(m=>`
+    <div class="item">
+      <div class="item-title">${escapeHtml(m.nom)}</div>
+      <div class="item-actions">
+        <span data-action="del-matiere" data-id="${m.id}">Supprimer</span>
+      </div>
+    </div>
+  `).join("") || `<p class="empty">Aucune matière pour l'instant. Ajoute la première ci-dessous.</p>`;
+
+  return `
+    <div class="card">
+      <h2>Ajouter une matière</h2>
+      <label>Nom de la matière</label>
+      <input type="text" id="new-matiere-nom" placeholder="ex: Mathématiques">
+      <button class="btn" data-action="add-matiere">Ajouter</button>
+    </div>
+    <div class="card">
+      <h2>Mes matières</h2>
+      ${list}
+    </div>
+  `;
+}
+
+/* ---------- COURS ---------- */
+function viewCours(){
+  if(db.matieres.length===0){
+    return `<div class="card"><p class="empty">Crée d'abord une matière dans l'onglet "Matières".</p></div>`;
+  }
+  const options = db.matieres.map(m=>`<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join("");
+  const list = db.cours.map(c=>{
+    const mat = db.matieres.find(m=>m.id===c.matiereId);
+    return `
+      <div class="item">
+        <div class="item-title">${escapeHtml(c.titre)} <span class="pill">${mat? escapeHtml(mat.nom): "?"}</span></div>
+        <div style="white-space:pre-wrap; font-size:14px; margin-top:6px; color:var(--ink-soft);">${escapeHtml(c.contenu)}</div>
+        <div class="item-actions">
+          <span data-action="del-cours" data-id="${c.id}">Supprimer</span>
+        </div>
+      </div>
+    `;
+  }).join("") || `<p class="empty">Aucun cours enregistré.</p>`;
+
+  return `
+    <div class="card">
+      <h2>Ajouter un cours</h2>
+      <label>Matière</label>
+      <select id="new-cours-matiere">${options}</select>
+      <label>Titre</label>
+      <input type="text" id="new-cours-titre" placeholder="ex: Les fractions">
+      <label>Contenu</label>
+      <textarea id="new-cours-contenu" placeholder="Résumé, notes, formules..."></textarea>
+      <button class="btn" data-action="add-cours">Ajouter</button>
+    </div>
+    <div class="card">
+      <h2>Mes cours</h2>
+      ${list}
+    </div>
+  `;
+}
+
+/* ---------- EXERCICES ---------- */
+function viewExercices(){
+  if(db.matieres.length===0){
+    return `<div class="card"><p class="empty">Crée d'abord une matière dans l'onglet "Matières".</p></div>`;
+  }
+  const options = db.matieres.map(m=>`<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join("");
+  const list = db.exercices.map(ex=>{
+    const mat = db.matieres.find(m=>m.id===ex.matiereId);
+    return `
+      <div class="item">
+        <div class="item-title">${escapeHtml(ex.question)} <span class="pill">${mat? escapeHtml(mat.nom): "?"}</span></div>
+        <div style="font-size:13px; color:var(--ink-soft); margin-top:4px;">
+          ${ex.choix.map((c,i)=>`${i===ex.bonneReponse ? "✓ " : "• "}${escapeHtml(c)}`).join("<br>")}
+        </div>
+        <div class="item-actions">
+          <span data-action="del-exercice" data-id="${ex.id}">Supprimer</span>
+        </div>
+      </div>
+    `;
+  }).join("") || `<p class="empty">Aucun exercice enregistré.</p>`;
+
+  return `
+    <div class="card">
+      <h2>Ajouter un exercice (QCM)</h2>
+      <label>Matière</label>
+      <select id="new-ex-matiere">${options}</select>
+      <label>Question</label>
+      <input type="text" id="new-ex-question" placeholder="ex: Combien font 3 x 4 ?">
+      <label>Choix 1</label>
+      <input type="text" id="new-ex-c0">
+      <label>Choix 2</label>
+      <input type="text" id="new-ex-c1">
+      <label>Choix 3 (optionnel)</label>
+      <input type="text" id="new-ex-c2">
+      <label>Choix 4 (optionnel)</label>
+      <input type="text" id="new-ex-c3">
+      <label>Numéro du bon choix (1, 2, 3 ou 4)</label>
+      <input type="text" id="new-ex-bonne" placeholder="1">
+      <button class="btn" data-action="add-exercice">Ajouter</button>
+    </div>
+    <div class="card">
+      <h2>Mes exercices</h2>
+      ${list}
+    </div>
+  `;
+}
+
+/* ---------- QUIZ ---------- */
+let quizState = null;
+
+function viewQuizSetup(){
+  if(db.exercices.length===0){
+    return `<div class="card"><p class="empty">Ajoute des exercices avant de lancer un quiz.</p></div>`;
+  }
+  const options = ['<option value="all">Toutes les matières</option>']
+    .concat(db.matieres.map(m=>`<option value="${m.id}">${escapeHtml(m.nom)}</option>`))
+    .join("");
+  return `
+    <div class="card">
+      <h2>Lancer un quiz</h2>
+      <label>Matière</label>
+      <select id="quiz-matiere">${options}</select>
+      <button class="btn" data-action="start-quiz">Commencer</button>
+    </div>
+  `;
+}
+
+function startQuiz(matiereId){
+  let exs = db.exercices.slice();
+  if(matiereId !== "all") exs = exs.filter(e=>e.matiereId===matiereId);
+  exs = shuffle(exs);
+  quizState = { exs, answers:{}, finished:false };
+  renderQuiz();
+}
+
+function renderQuiz(){
+  const app = document.getElementById("app");
+  if(!quizState || quizState.exs.length===0){
+    app.innerHTML = `<div class="card"><p class="empty">Aucun exercice pour cette sélection.</p></div>`;
+    return;
+  }
+  if(quizState.finished){
+    const total = quizState.exs.length;
+    let correct = 0;
+    quizState.exs.forEach(ex=>{ if(quizState.answers[ex.id]===ex.bonneReponse) correct++; });
+    app.innerHTML = `
+      <div class="card">
+        <div class="score">${correct} / ${total} bonnes réponses</div>
+        <button class="btn" data-action="restart-quiz">Nouveau quiz</button>
+      </div>
+      ${quizState.exs.map(ex=>renderQuizQuestion(ex, true)).join("")}
+    `;
+  } else {
+    app.innerHTML = `
+      <div class="card">
+        ${quizState.exs.map(ex=>renderQuizQuestion(ex, false)).join("")}
+        <button class="btn" data-action="submit-quiz">Corriger</button>
+      </div>
+    `;
+  }
+  attachHandlers();
+}
+
+function renderQuizQuestion(ex, showCorrection){
+  const chosen = quizState.answers[ex.id];
+  const choicesHtml = ex.choix.map((c,i)=>{
+    if(!c) return "";
+    let cls = "choice";
+    if(!showCorrection){
+      if(chosen===i) cls += " selected";
+    } else {
+      if(i===ex.bonneReponse) cls += " correct";
+      else if(i===chosen) cls += " incorrect";
+    }
+    return `<div class="${cls}" data-action="${showCorrection?'':'pick'}" data-exid="${ex.id}" data-idx="${i}">${escapeHtml(c)}</div>`;
+  }).join("");
+  return `
+    <div class="quiz-q">
+      <p class="question">${escapeHtml(ex.question)}</p>
+      ${choicesHtml}
+    </div>
+  `;
+}
+
+/* ---------- EVENT HANDLING ---------- */
+function attachHandlers(){
+  document.querySelectorAll("[data-action]").forEach(el=>{
+    el.onclick = handleAction;
+  });
+}
+
+function handleAction(e){
+  const el = e.currentTarget;
+  const action = el.dataset.action;
+
+  if(action==="add-matiere"){
+    const val = document.getElementById("new-matiere-nom").value.trim();
+    if(!val) return;
+    db.matieres.push({id:uid(), nom:val});
+    saveDB(); render();
+  }
+  else if(action==="del-matiere"){
+    const id = el.dataset.id;
+    db.matieres = db.matieres.filter(m=>m.id!==id);
+    db.cours = db.cours.filter(c=>c.matiereId!==id);
+    db.exercices = db.exercices.filter(x=>x.matiereId!==id);
+    saveDB(); render();
+  }
+  else if(action==="add-cours"){
+    const matiereId = document.getElementById("new-cours-matiere").value;
+    const titre = document.getElementById("new-cours-titre").value.trim();
+    const contenu = document.getElementById("new-cours-contenu").value.trim();
+    if(!titre) return;
+    db.cours.push({id:uid(), matiereId, titre, contenu});
+    saveDB(); render();
+  }
+  else if(action==="del-cours"){
+    db.cours = db.cours.filter(c=>c.id!==el.dataset.id);
+    saveDB(); render();
+  }
+  else if(action==="add-exercice"){
+    const matiereId = document.getElementById("new-ex-matiere").value;
+    const question = document.getElementById("new-ex-question").value.trim();
+    const choix = [0,1,2,3].map(i=>document.getElementById("new-ex-c"+i).value.trim());
+    const bonneRaw = document.getElementById("new-ex-bonne").value.trim();
+    const bonne = parseInt(bonneRaw,10) - 1;
+    if(!question || !choix[0] || !choix[1] || isNaN(bonne) || bonne<0 || bonne>3 || !choix[bonne]){
+      alert("Vérifie la question, au moins 2 choix, et le numéro du bon choix.");
+      return;
+    }
+    db.exercices.push({id:uid(), matiereId, question, choix, bonneReponse:bonne});
+    saveDB(); render();
+  }
+  else if(action==="del-exercice"){
+    db.exercices = db.exercices.filter(x=>x.id!==el.dataset.id);
+    saveDB(); render();
+  }
+  else if(action==="start-quiz"){
+    const matiereId = document.getElementById("quiz-matiere").value;
+    startQuiz(matiereId);
+  }
+  else if(action==="pick"){
+    quizState.answers[el.dataset.exid] = parseInt(el.dataset.idx,10);
+    renderQuiz();
+  }
+  else if(action==="submit-quiz"){
+    quizState.finished = true;
+    renderQuiz();
+  }
+  else if(action==="restart-quiz"){
+    quizState = null;
+    currentTab = "quiz";
+    document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active", b.dataset.tab==="quiz"));
+    render();
+  }
+}
+
+/* ---------- UTILS ---------- */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+render();
+</script>
+</body>
+</html>
